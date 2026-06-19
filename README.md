@@ -1,4 +1,4 @@
-# ops-tools-mcp
+# general-agentic-management-mcp
 
 Standalone MCP server exposing operational tools backed entirely by open/public APIs. No private infrastructure, no API keys, no proprietary endpoints required.
 
@@ -49,7 +49,7 @@ python server.py --transport sse
   "mcpServers": {
     "ops-tools": {
       "command": "python",
-      "args": ["/opt/ops-tools-mcp/server.py"]
+      "args": ["/opt/general-agentic-management-mcp/server.py"]
     }
   }
 }

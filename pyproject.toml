@@ -1,5 +1,5 @@
 [project]
-name = "ops-tools-mcp"
+name = "general-agentic-management-mcp"
 version = "0.1.0"
 description = "MCP server: aviation weather, TFRs, NWS alerts, flight tracking, Amtrak"
 requires-python = ">=3.11"
@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ops-tools-mcp = "server:main"
+general-agentic-management-mcp = "server:main"
 
 [build-system]
 requires = ["hatchling"]

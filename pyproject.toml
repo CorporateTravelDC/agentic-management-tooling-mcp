@@ -1,0 +1,17 @@
+[project]
+name = "ops-tools-mcp"
+version = "0.1.0"
+description = "MCP server: aviation weather, TFRs, NWS alerts, flight tracking, Amtrak"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=1.0",
+    "httpx>=0.27",
+    "xmltodict>=0.13",
+]
+
+[project.scripts]
+ops-tools-mcp = "server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

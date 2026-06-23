@@ -1,0 +1,64 @@
+{
+  "_instructions": [
+    "Copy this file to $AGENTIC_MCP_STATE_DIR/pricing_registry.json",
+    "Fill in input_per_mtok and output_per_mtok for each model you use.",
+    "Units: USD per million tokens.",
+    "Add or remove providers and models freely — this file is never read by the template.",
+    "Run: pricing_registry_update tool to add entries at runtime without editing this file."
+  ],
+  "providers": {
+    "anthropic": {
+      "claude-haiku-4-5": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "notes": ""
+      },
+      "claude-sonnet-4-6": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "notes": ""
+      },
+      "claude-opus-4-6": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "notes": ""
+      }
+    },
+    "openai": {
+      "gpt-4o": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "notes": ""
+      },
+      "gpt-4o-mini": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "notes": ""
+      },
+      "o1": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "notes": ""
+      }
+    },
+    "perplexity": {
+      "sonar": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "notes": ""
+      },
+      "sonar-pro": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "notes": ""
+      }
+    },
+    "custom": {
+      "example-model-id": {
+        "input_per_mtok": 0,
+        "output_per_mtok": 0,
+        "notes": "Use this block for self-hosted or unlisted models."
+      }
+    }
+  }
+}

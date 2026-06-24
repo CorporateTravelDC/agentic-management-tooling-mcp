@@ -1,38 +1,54 @@
 # agentic-management-tooling-mcp
 
-> **Planned rename:** This repository will be renamed to `agentic-management-tooling-mcp` to better reflect its scope.
+Vendor-agnostic MCP server toolkit for building agentic workflows with real operational safety.
 
-A living collection of MCP (Model Context Protocol) server tools, originally developed alongside a private operational dispatch platform and progressively generalized for use by any operator, developer, or integrator building agentic workflows.
+Built under live operational pressure — not a demo. The safety rail primitives in `agentic/`
+came from a production executive transport dispatch system where a runaway agent loop or a
+mistimed mutation has real consequences. The rest followed.
 
-These tools are made available because the underlying patterns — API cost guardrails, session state management, mutation safety rails, mobility and network intelligence, gig-work analysis — are useful well beyond the platform they came from. If you are building an executive assistant, a travel concierge, a limo or black-car dispatch system, a virtual assistant, or anything in the emergency management or telecommunications space, there is likely something here you can drop in directly.
-
-No private infrastructure is required. All tools either call open/public APIs or operate entirely on locally-supplied data files.
-
----
-
-## Status
-
-This is a living document. Tools are added as new capabilities are extracted from the dispatch platform or contributed from adjacent workflows. The tool count and module list below reflect the current state; check commit history for what has changed recently.
+No private infrastructure required. No proprietary API keys for most tools. Drop in and run.
 
 ---
 
-## Structure
+## The problem this solves
+
+LLM agents operating over real systems have three failure modes that are underserved by
+most MCP toolkits:
+
+**Mutation without confirmation.** An agent writes, deletes, or triggers something it
+should not because no gate was in the path. `mutation_gate` blocks every state-changing
+call until `confirmed=True` is explicit. Every intercept is logged.
+
+**Cost runaway.** Long-running agentic sessions accumulate API spend invisibly.
+`api_budget_check` and `api_cost_estimate` track cumulative session spend against a
+configurable ceiling using a vendor-agnostic pricing registry you maintain locally.
+
+**State loss across tool calls.** Agents lose context between calls. `session_snapshot_save`
+and `session_snapshot_restore` give any agent a durable checkpoint it can reload after
+a handoff, restart, or context compaction.
+
+Everything else in this repo is operational data and analysis tooling that runs cleanly
+on top of those primitives.
+
+---
+
+## Namespaces
 
 ```
-agentic/          Safety rails, API budget controls, session state, async ops,
-                  entity watchlists, go/no-go scoring, health monitoring.
-                  Platform-agnostic — works with any LLM provider.
+agentic/          Safety rails, mutation guards, API budget controls, session state,
+                  async polling, entity watchlists, go/no-go scoring, health monitoring.
+                  Vendor-agnostic -- works with any LLM provider and any MCP client.
 
-tools/            Operational data tools backed by public APIs.
-                  Aviation weather, FAA TFRs, NWS alerts, flight tracking,
-                  Amtrak train status. No API keys required.
+tools/            Operational data tools backed by public APIs with no keys required.
+                  Aviation weather, FAA TFRs, NWS alerts, ADS-B flight tracking,
+                  Amtrak train status.
 
-intelligence/     Analysis tools for structured exports and derived intelligence.
-                  LinkedIn network analysis, mobility intelligence,
-                  cell coverage analysis.
+intelligence/     Structured analysis from export files and derived data.
+                  LinkedIn network analysis, mobility pattern intelligence,
+                  cellular coverage gap analysis.
 
 gig_mobility/     Gig-platform export normalization and analysis.
-                  Uber, Lyft, DoorDash, Grubhub and generic exports.
+                  Uber, Lyft, DoorDash, Grubhub and generic CSV/JSON exports.
                   Geographic primitives via Maidenhead grid.
 ```
 
@@ -40,12 +56,15 @@ gig_mobility/     Gig-platform export normalization and analysis.
 
 ## Tools (51 total)
 
-### agentic/ (17 tools)
+### agentic/ -- 17 tools
+
+The core of this repo. These are the primitives that make the rest safe to run
+in an agentic context.
 
 | Tool | Purpose |
 |---|---|
-| `mutation_gate` | SR1 — blocks any state-changing API call unless `confirmed=True` is explicit. Logs every intercept. |
-| `model_routing_check` | SR2 — recommends model tier (any provider) based on task type and remaining budget. |
+| `mutation_gate` | SR1 -- blocks any state-changing call unless `confirmed=True` is explicit. Logs every intercept. |
+| `model_routing_check` | SR2 -- recommends model tier (any provider) based on task type and remaining budget. |
 | `data_resolution_gate` | Hard guardrail: Maidenhead resolution > 6 chars requires attested own/sanitized data or fails. |
 | `api_cost_estimate` | Estimates call cost from a user-maintained vendor-agnostic pricing registry. |
 | `api_budget_check` | Tracks cumulative session spend against a configurable ceiling. |
@@ -61,7 +80,10 @@ gig_mobility/     Gig-platform export normalization and analysis.
 | `watchlist_add` / `watchlist_remove` / `watchlist_get` / `watchlist_check` | Named entity lists (flights, clients, reservation codes, etc.). |
 | `readiness_score` | Multi-factor go/no-go scoring. Generalizes CPS-style checks to any domain. |
 
-### tools/ (11 tools)
+### tools/ -- 11 tools
+
+Public API tools. No keys required. Useful standalone; designed to feed into
+`readiness_score` and the `agentic/` safety layer.
 
 | Tool | Purpose |
 |---|---|
@@ -77,23 +99,30 @@ gig_mobility/     Gig-platform export normalization and analysis.
 | `get_train_status` | Amtrak train status at any station. |
 | `get_train_delay` | Delay in minutes for a specific Amtrak train at a given station. |
 
-### intelligence/ (11 tools)
+### intelligence/ -- 11 tools
+
+Analysis tools that operate on structured export files. No live API calls;
+all inference is local.
 
 | Tool | Purpose |
 |---|---|
-| `linkedin_network_breakdown` | Industry + tenure breakdown from a LinkedIn data export. |
-| `linkedin_content_analysis` | Post/comment topic analysis, co-occurrence. |
+| `linkedin_network_breakdown` | Industry and tenure breakdown from a LinkedIn data export. |
+| `linkedin_content_analysis` | Post and comment topic analysis, co-occurrence. |
 | `linkedin_engagement_patterns` | Reaction patterns, monthly activity, most-engaged contacts. |
-| `mobility_security_brief` | Surfaces high-activity and scarcity zones for advance/security planning. |
-| `mobility_marketing_brief` | Identifies underserved high-value corridors for limo/concierge positioning. |
+| `mobility_security_brief` | Surfaces high-activity and scarcity zones for advance and security planning. |
+| `mobility_marketing_brief` | Identifies underserved high-value corridors for concierge/transport positioning. |
 | `mobility_emergency_correlate` | Correlates mobility gaps with timestamped incident data. |
-| `mobility_outage_supplement` | Correlates gig data with Downdetector-format outage export. |
+| `mobility_outage_supplement` | Correlates gig data with Downdetector-format outage exports. |
 | `coverage_load_opencellid` | Loads OpenCelliD CSV tower data for a bounding box. |
 | `coverage_grid_overlay` | Bins towers into Maidenhead grid squares by provider. |
 | `coverage_gap_analysis` | Identifies coverage gaps in high-mobility areas. |
 | `coverage_provider_comparison` | Compares carrier coverage quality by neighborhood. |
 
-### gig_mobility/ (12 tools)
+### gig_mobility/ -- 12 tools
+
+Export normalization and demand analysis for gig platforms. Privacy-preserving
+by design -- restaurant identity is discarded, location is Maidenhead-binned,
+no PII surfaces in output.
 
 | Tool | Purpose |
 |---|---|
@@ -128,16 +157,17 @@ cp pricing_registry.template.json $AGENTIC_MCP_STATE_DIR/pricing_registry.json
 ## Configuration
 
 ```bash
-# Required — no default. Server refuses to start without this.
+# Required -- no default. Server refuses to start without this.
 export AGENTIC_MCP_STATE_DIR=/path/to/your/state/directory
 ```
 
-On first run the server will confirm the state directory path and ask you to acknowledge before writing any files.
+On first run the server confirms the state directory path and asks you to acknowledge
+before writing any files.
 
 ## Usage
 
 ```bash
-python server.py                    # stdio (Claude Desktop / MCP clients)
+python server.py                    # stdio (Claude Desktop / any MCP client)
 python server.py --transport sse    # SSE for remote clients
 ```
 
@@ -157,19 +187,27 @@ python server.py --transport sse    # SSE for remote clients
 }
 ```
 
+---
+
 ## Privacy and resolution guardrails
 
-Geographic tools default to **6-character Maidenhead resolution** (~4.6km x 2.3km, neighborhood level).
+Geographic tools default to **6-character Maidenhead resolution** (~4.6km x 2.3km,
+neighborhood level).
 
-Resolution of 8, 10, or 12 characters is blocked for third-party or unverified data. To use finer resolution you must explicitly attest:
-- `own_data=True` — this is data you collected yourself, and
-- `pre_sanitized=True` — PII has been removed prior to import.
+Resolution of 8, 10, or 12 characters is blocked for third-party or unverified data.
+To use finer resolution you must explicitly attest:
 
-Both flags must be set or the tool returns a structured refusal. This is logged to the audit trail.
+- `own_data=True` -- this is data you collected yourself, and
+- `pre_sanitized=True` -- PII has been removed prior to import.
+
+Both flags must be set or the tool returns a structured refusal. Every invocation
+is logged to the audit trail regardless of outcome.
+
+---
 
 ## Public APIs used
 
-| Module | Endpoint |
+| Namespace | Endpoint |
 |---|---|
 | Aviation Weather | `https://aviationweather.gov/api/data` |
 | FAA TFR | `https://tfr.faa.gov/tfr2/xml_files/fr.xml` |
@@ -177,4 +215,4 @@ Both flags must be set or the tool returns a structured refusal. This is logged 
 | Flight Tracking | `https://api.airplanes.live/v2` |
 | Amtrak | `https://api-v3.amtraker.com/v3` |
 | Reverse Geocode | `https://nominatim.openstreetmap.org/reverse` (rate-limited, cached) |
-| Cell Towers | OpenCelliD CSV (operator supplies file — `https://opencellid.org`) |
+| Cell Towers | OpenCelliD CSV (operator supplies file -- `https://opencellid.org`) |

@@ -8,6 +8,8 @@ mistimed mutation has real consequences. The rest followed.
 
 No private infrastructure required. No proprietary API keys for most tools. Drop in and run.
 
+> ALL Public commits are GPG signed, using Key: ABD3976FCC006E0F3FE559177286B3118BA4EFB2    Public key included in this repo.
+
 ---
 
 ## The problem this solves

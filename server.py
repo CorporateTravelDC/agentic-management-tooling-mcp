@@ -44,11 +44,17 @@ from tools.flight_track     import track_flight_by_callsign, track_flight_by_reg
 from tools.train_status     import get_train_status, get_train_delay
 
 # ---------------------------------------------------------------------------
-# Intelligence tools
+# Intelligence tools (optional -- modules loaded only when implemented)
 # ---------------------------------------------------------------------------
-from intelligence.linkedin_analysis     import linkedin_network_breakdown, linkedin_content_analysis, linkedin_engagement_patterns
-from intelligence.mobility_intelligence import mobility_security_brief, mobility_marketing_brief, mobility_emergency_correlate, mobility_outage_supplement
-from intelligence.coverage_intelligence import coverage_load_opencellid, coverage_grid_overlay, coverage_gap_analysis, coverage_provider_comparison
+_intelligence_available = False
+try:
+    from intelligence.linkedin_analysis     import linkedin_network_breakdown, linkedin_content_analysis, linkedin_engagement_patterns
+    from intelligence.mobility_intelligence import mobility_security_brief, mobility_marketing_brief, mobility_emergency_correlate, mobility_outage_supplement
+    from intelligence.coverage_intelligence import coverage_load_opencellid, coverage_grid_overlay, coverage_gap_analysis, coverage_provider_comparison
+    _intelligence_available = True
+except ImportError:
+    import logging as _log
+    _log.getLogger("agentic_mcp").warning("intelligence/ modules not yet implemented -- 11 tools unavailable")
 
 # ---------------------------------------------------------------------------
 # Gig mobility tools
@@ -261,66 +267,67 @@ def get_train_delay_tool(train_number: str, station_code: str) -> dict:
     """Delay in minutes for a specific Amtrak train at a given station."""
     return get_train_delay(train_number=train_number, station_code=station_code)
 
-# ── Intelligence: LinkedIn ────────────────────────────────────────────────────
+if _intelligence_available:
+    # ── Intelligence: LinkedIn ────────────────────────────────────────────────────
 
-@mcp.tool()
-def linkedin_network_breakdown_tool(export_path: str) -> dict:
-    """Industry and tenure breakdown from a LinkedIn data export ZIP or CSV directory."""
-    return linkedin_network_breakdown(export_path=export_path)
+    @mcp.tool()
+    def linkedin_network_breakdown_tool(export_path: str) -> dict:
+        """Industry and tenure breakdown from a LinkedIn data export ZIP or CSV directory."""
+        return linkedin_network_breakdown(export_path=export_path)
 
-@mcp.tool()
-def linkedin_content_analysis_tool(export_path: str) -> dict:
-    """Post and comment topic analysis, co-occurrence, and engagement rate per topic."""
-    return linkedin_content_analysis(export_path=export_path)
+    @mcp.tool()
+    def linkedin_content_analysis_tool(export_path: str) -> dict:
+        """Post and comment topic analysis, co-occurrence, and engagement rate per topic."""
+        return linkedin_content_analysis(export_path=export_path)
 
-@mcp.tool()
-def linkedin_engagement_patterns_tool(export_path: str) -> dict:
-    """Monthly activity trends, reaction patterns, and most-engaged contacts."""
-    return linkedin_engagement_patterns(export_path=export_path)
+    @mcp.tool()
+    def linkedin_engagement_patterns_tool(export_path: str) -> dict:
+        """Monthly activity trends, reaction patterns, and most-engaged contacts."""
+        return linkedin_engagement_patterns(export_path=export_path)
 
-# ── Intelligence: Mobility ────────────────────────────────────────────────────
+    # ── Intelligence: Mobility ────────────────────────────────────────────────────
 
-@mcp.tool()
-def mobility_security_brief_tool(heatmap_data: dict, time_window: str = None) -> dict:
-    """Surface high-activity and driver-scarcity zones for advance/security planning."""
-    return mobility_security_brief(heatmap_data=heatmap_data, time_window=time_window)
+    @mcp.tool()
+    def mobility_security_brief_tool(heatmap_data: dict, time_window: str = None) -> dict:
+        """Surface high-activity and driver-scarcity zones for advance/security planning."""
+        return mobility_security_brief(heatmap_data=heatmap_data, time_window=time_window)
 
-@mcp.tool()
-def mobility_marketing_brief_tool(cluster_data: dict, revenue_data: dict) -> dict:
-    """Identify underserved high-value corridors for limo/concierge/black-car positioning."""
-    return mobility_marketing_brief(cluster_data=cluster_data, revenue_data=revenue_data)
+    @mcp.tool()
+    def mobility_marketing_brief_tool(cluster_data: dict, revenue_data: dict) -> dict:
+        """Identify underserved high-value corridors for limo/concierge/black-car positioning."""
+        return mobility_marketing_brief(cluster_data=cluster_data, revenue_data=revenue_data)
 
-@mcp.tool()
-def mobility_emergency_correlate_tool(heatmap_data: dict, incident_timestamps: list[dict]) -> dict:
-    """Correlate mobility gaps with timestamped incident data for emergency management use."""
-    return mobility_emergency_correlate(heatmap_data=heatmap_data, incident_timestamps=incident_timestamps)
+    @mcp.tool()
+    def mobility_emergency_correlate_tool(heatmap_data: dict, incident_timestamps: list[dict]) -> dict:
+        """Correlate mobility gaps with timestamped incident data for emergency management use."""
+        return mobility_emergency_correlate(heatmap_data=heatmap_data, incident_timestamps=incident_timestamps)
 
-@mcp.tool()
-def mobility_outage_supplement_tool(records: list[dict], downdetector_csv_path: str) -> dict:
-    """Correlate gig data with a Downdetector-format outage export to identify connectivity failures."""
-    return mobility_outage_supplement(records=records, downdetector_csv_path=downdetector_csv_path)
+    @mcp.tool()
+    def mobility_outage_supplement_tool(records: list[dict], downdetector_csv_path: str) -> dict:
+        """Correlate gig data with a Downdetector-format outage export to identify connectivity failures."""
+        return mobility_outage_supplement(records=records, downdetector_csv_path=downdetector_csv_path)
 
-# ── Intelligence: Coverage ────────────────────────────────────────────────────
+    # ── Intelligence: Coverage ────────────────────────────────────────────────────
 
-@mcp.tool()
-def coverage_load_opencellid_tool(csv_path: str, bbox: dict) -> dict:
-    """Load OpenCelliD cell tower CSV for a bounding box. bbox: {sw_lat, sw_lon, ne_lat, ne_lon}."""
-    return coverage_load_opencellid(csv_path=csv_path, bbox=bbox)
+    @mcp.tool()
+    def coverage_load_opencellid_tool(csv_path: str, bbox: dict) -> dict:
+        """Load OpenCelliD cell tower CSV for a bounding box. bbox: {sw_lat, sw_lon, ne_lat, ne_lon}."""
+        return coverage_load_opencellid(csv_path=csv_path, bbox=bbox)
 
-@mcp.tool()
-def coverage_grid_overlay_tool(tower_data: list[dict], grid_chars: int = 6) -> dict:
-    """Bin cell towers into Maidenhead grid squares by provider at 6 or 8 char resolution."""
-    return coverage_grid_overlay(tower_data=tower_data, grid_chars=grid_chars)
+    @mcp.tool()
+    def coverage_grid_overlay_tool(tower_data: list[dict], grid_chars: int = 6) -> dict:
+        """Bin cell towers into Maidenhead grid squares by provider at 6 or 8 char resolution."""
+        return coverage_grid_overlay(tower_data=tower_data, grid_chars=grid_chars)
 
-@mcp.tool()
-def coverage_gap_analysis_tool(grid_coverage: dict, mobility_data: dict) -> dict:
-    """Identify areas where mobility demand is high but cell coverage is thin."""
-    return coverage_gap_analysis(grid_coverage=grid_coverage, mobility_data=mobility_data)
+    @mcp.tool()
+    def coverage_gap_analysis_tool(grid_coverage: dict, mobility_data: dict) -> dict:
+        """Identify areas where mobility demand is high but cell coverage is thin."""
+        return coverage_gap_analysis(grid_coverage=grid_coverage, mobility_data=mobility_data)
 
-@mcp.tool()
-def coverage_provider_comparison_tool(grid_coverage: dict, area: str = None) -> dict:
-    """Compare carrier coverage quality by neighborhood or Maidenhead grid."""
-    return coverage_provider_comparison(grid_coverage=grid_coverage, area=area)
+    @mcp.tool()
+    def coverage_provider_comparison_tool(grid_coverage: dict, area: str = None) -> dict:
+        """Compare carrier coverage quality by neighborhood or Maidenhead grid."""
+        return coverage_provider_comparison(grid_coverage=grid_coverage, area=area)
 
 # ── Gig mobility: Geo utils ───────────────────────────────────────────────────
 
@@ -398,6 +405,66 @@ def main() -> None:
         if idx + 1 < len(sys.argv):
             transport = sys.argv[idx + 1]
     mcp.run(transport=transport)
+
+
+
+
+@mcp.tool()
+def stack_watchdog_status_tool(dispatch_token: str = None) -> dict:
+    """Check the full corporatetraveldc stack health in one call.
+
+    Runs HTTP health checks against all four stack endpoints (dispatch-web,
+    dispatch-runner, ntfy, ollama) and, if a token is supplied, fetches the
+    last ctdi-watchdog run record from the dispatch admin API.
+
+    Use this as the first tool when asked "is the stack healthy?", "what's
+    the watchdog status?", or "did anything go down recently?".
+
+    Args:
+        dispatch_token: Optional bearer token for /admin/watchdog/status.
+                        Without it the watchdog record is skipped.
+
+    Returns:
+        dict with:
+            all_healthy (bool): True if every HTTP endpoint returned 200,
+            endpoints (dict): per-endpoint {healthy, status_code, latency_ms},
+            watchdog (dict | None): last run record from dispatch admin API,
+                fields: timestamp, age_seconds, healthy, healed, failed.
+    """
+    import time
+    import httpx
+    import json as _json
+
+    ENDPOINTS = {
+        "dispatch-web":    "http://100.94.80.100:8000/healthz",
+        "dispatch-runner": "http://100.94.80.100:8001/healthz",
+        "ntfy":            "http://100.94.80.100:2586/v1/health",
+        "ollama":          "http://100.94.80.100:11434/api/tags",
+    }
+
+    results: dict[str, dict] = {}
+    for name, url in ENDPOINTS.items():
+        results[name] = http_health_check(url, expected_status=200, timeout_seconds=8.0)
+
+    watchdog_record = None
+    if dispatch_token:
+        try:
+            with httpx.Client(timeout=8.0) as client:
+                r = client.get(
+                    "http://100.94.80.100:8000/admin/watchdog/status",
+                    headers={"Authorization": f"Bearer {dispatch_token}"},
+                )
+                if r.status_code == 200:
+                    watchdog_record = r.json()
+                    watchdog_record["age_seconds"] = int(time.time()) - watchdog_record.get("unix", 0)
+        except Exception:
+            pass
+
+    return {
+        "all_healthy": all(v.get("healthy") for v in results.values()),
+        "endpoints": results,
+        "watchdog": watchdog_record,
+    }
 
 
 if __name__ == "__main__":

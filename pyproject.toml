@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentic-management-tooling-mcp"
@@ -20,6 +20,9 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["agentic*", "tools*", "intelligence*", "gig_mobility*"]
+
+[tool.setuptools]
+py-modules = ["server", "config"]
 
 [project.scripts]
 agentic-mcp = "server:main"

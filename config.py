@@ -5,7 +5,12 @@ AGENTIC_MCP_STATE_DIR must be set in the environment before the server
 starts. No default is provided. On first run the server confirms the
 path and writes a sentinel file before any tool is registered.
 
-Public API base URLs require no credentials.
+Public API base URLs require no credentials, with one documented
+exception: FLIGHTAWARE_API_KEY (optional env var, read directly via
+os.environ by tools/airport_arrivals.py) enables the AeroAPI fallback
+tier for arrivals lookups at airports with no free public FIDS feed.
+Tools degrade gracefully (return an error dict, not an exception) if
+it is unset.
 """
 
 import os

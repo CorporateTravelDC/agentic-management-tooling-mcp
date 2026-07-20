@@ -42,6 +42,7 @@ from tools.faa_tfr          import get_active_tfrs
 from tools.nws_alerts       import get_nws_alerts, get_nws_forecast
 from tools.flight_track     import track_flight_by_callsign, track_flight_by_registration, track_flight_by_hex
 from tools.train_status     import get_train_status, get_train_delay
+from tools.airport_arrivals import get_airport_arrivals
 
 # ---------------------------------------------------------------------------
 # Intelligence tools (optional -- modules loaded only when implemented)
@@ -266,6 +267,16 @@ def get_train_status_tool(station_code: str, train_number: str = None) -> dict:
 def get_train_delay_tool(train_number: str, station_code: str) -> dict:
     """Delay in minutes for a specific Amtrak train at a given station."""
     return get_train_delay(train_number=train_number, station_code=station_code)
+
+# ── Operational tools: Airport arrivals (generalized, any airport) ──────────
+
+@mcp.tool()
+def get_airport_arrivals_tool(airport: str, carriers: list[str] = None, within_minutes: int = 90) -> dict:
+    """Forward-looking arrivals for any airport (ICAO or IATA code), optionally filtered by carrier.
+    Layered lookup: free MWAA website source for DCA/IAD, FlightAware AeroAPI fallback for any
+    airport (requires FLIGHTAWARE_API_KEY env var). Use for ground transport / pickup timing at
+    any airport, not just DC-area hubs."""
+    return get_airport_arrivals(airport=airport, carriers=carriers, within_minutes=within_minutes)
 
 if _intelligence_available:
     # ── Intelligence: LinkedIn ────────────────────────────────────────────────────

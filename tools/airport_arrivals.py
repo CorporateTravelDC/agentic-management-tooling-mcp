@@ -2,13 +2,16 @@
 tools/airport_arrivals.py -- generalized forward-looking arrivals lookup for
 any airport, layered across free and paid public sources.
 
-No airport is hardcoded as a special case beyond the two MWAA-operated DC
-hubs (DCA/IAD), which get a free-tier website source on top of the general
-AeroAPI path every other airport uses. Callers pass any ICAO or IATA
-airport code.
+No airport is hardcoded. A deployment can configure its own free-tier
+local-airport-website source(s) via the LOCAL_AIRPORT_WEBSITE_FIDS env var
+(JSON object, same shape as the built-in default below) -- every other
+airport already works through the universal AeroAPI tier with zero config.
+Callers pass any ICAO or IATA airport code.
 
 Tiers tried in order, first non-empty result wins:
-  1. MWAA airport-website FIDS scrape -- DCA/IAD only (free, no key needed)
+  1. Configured local-airport-website FIDS scrape -- only for airports
+     present in LOCAL_AIRPORT_WEBSITE_FIDS (free, no key needed). Empty by
+     default; see below for how to configure one for your own deployment.
   2. FlightAware AeroAPI scheduled_arrivals -- any airport (requires
      FLIGHTAWARE_API_KEY; returns a clear error dict if unset rather than
      silently returning nothing)
@@ -21,26 +24,51 @@ dispatch_get_fids_arrivals (a separate MCP, corporatetravel-dispatch) when
 you specifically want the SWIM-primary version for DCA/IAD/BWI; use this
 tool for a general-purpose lookup at any airport, or when the dispatch
 platform isn't reachable.
+
+2026-08-16: previously had DCA/IAD (MWAA-operated DC hubs) hardcoded as the
+only possible free tier -- genuinely portable already via the AeroAPI tier,
+but the free-tier optimization itself only ever benefited a DC deployment.
+Moved to env-var config so ANY deployment gets the same free-tier benefit
+for their own local airport(s), not just this one. Example, for a
+deployment near two airports with public arrivals JSON endpoints:
+
+  LOCAL_AIRPORT_WEBSITE_FIDS='{"ORD":{"url":"https://example.com/fids.json","referer":"https://example.com/"}}'
+
+Response shape assumed for any configured source: {"arrivals": [{"IATA":
+str, "flightnumber": str, "dep_airport_code": str, "status": str,
+"publishedTime": "YYYY-MM-DD HH:MM:SS", "mod_gate"/"gate": str,
+"arr_terminal": str}, ...]} -- the exact MWAA JSON shape. A different
+website's JSON shape would need a small adapter, not supported generically
+here (that's the honest limit of "free tier," not a bug).
 """
 
+import json
+import os
 from datetime import datetime, timedelta, timezone
 
 import httpx
 
 FLIGHTAWARE_API_BASE = "https://aeroapi.flightaware.com/aeroapi"
 
-# MWAA (Metropolitan Washington Airports Authority) website FIDS -- free,
-# no key required, covers only the two airports MWAA operates.
-_MWAA_AIRPORTS = {
-    "DCA": {
-        "url": "https://www.flyreagan.com/arrivals-and-departures/json",
-        "referer": "https://www.flyreagan.com/arrivals-and-departures",
-    },
-    "IAD": {
-        "url": "https://www.flydulles.com/arrivals-and-departures/json",
-        "referer": "https://www.flydulles.com/arrivals-and-departures",
-    },
-}
+
+def _load_local_airport_fids() -> dict:
+    """LOCAL_AIRPORT_WEBSITE_FIDS env var -- JSON object of
+    {IATA: {"url": ..., "referer": ...}}. Empty dict (no free tier for any
+    airport) if unset or invalid -- AeroAPI still covers everything, this
+    is purely an optional cost-saving optimization per deployment."""
+    raw = os.environ.get("LOCAL_AIRPORT_WEBSITE_FIDS", "").strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            return {}
+        return parsed
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
+_MWAA_AIRPORTS = _load_local_airport_fids()
 _MWAA_UA = "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36"
 _MWAA_COOKIE = "flight-info=1"
 _MWAA_FORWARD_STATUSES = {"Scheduled", "InAir", "Delayed"}
@@ -106,7 +134,7 @@ def _mwaa_lookup(iata: str, carriers: set[str] | None, within_minutes: int) -> l
         if not (now <= pub_dt <= cutoff):
             continue
         results.append({
-            "source":     "mwaa_website",
+            "source":     "local_website",
             "airport":    iata,
             "carrier":    carrier,
             "flight_num": f.get("flightnumber"),
@@ -183,7 +211,7 @@ def get_airport_arrivals(
     """
     Layered forward-looking arrivals lookup for any airport.
 
-    Tries a free MWAA website source first (DCA/IAD only), then falls back
+    Tries a configured free local-airport-website source first (if any), then falls back
     to FlightAware AeroAPI (any airport, requires FLIGHTAWARE_API_KEY env
     var -- returns a clear error if unset rather than silently finding
     nothing).
@@ -198,7 +226,7 @@ def get_airport_arrivals(
         within_minutes: Forward-looking window in minutes (default 90).
 
     Returns:
-        Dict with: airport, source_used ('mwaa_website' | 'aeroapi' |
+        Dict with: airport, source_used ('local_website' | 'aeroapi' |
         'none'), results (list of flight dicts: source, airport, carrier,
         flight_num, origin, status, scheduled, gate, terminal), and note
         (explains which tier served the data or why nothing did).
@@ -213,7 +241,7 @@ def get_airport_arrivals(
     if mwaa_results:
         return {
             "airport": iata,
-            "source_used": "mwaa_website",
+            "source_used": "local_website",
             "results": mwaa_results,
             "note": None,
         }
@@ -221,10 +249,11 @@ def get_airport_arrivals(
     api_key = os.environ.get("FLIGHTAWARE_API_KEY") or None
     if not api_key:
         note = (
-            "No MWAA website data (only DCA/IAD have that free source) and "
-            "FLIGHTAWARE_API_KEY is not set, so AeroAPI can't be tried. Set "
-            "FLIGHTAWARE_API_KEY in the environment to enable the fallback "
-            "for this and every other airport."
+            "No local-airport-website data (none configured for this airport "
+            "via LOCAL_AIRPORT_WEBSITE_FIDS) and FLIGHTAWARE_API_KEY is not "
+            "set, so AeroAPI can't be tried either. Set FLIGHTAWARE_API_KEY "
+            "in the environment to enable the fallback for this and every "
+            "other airport."
         )
         return {
             "airport": iata,

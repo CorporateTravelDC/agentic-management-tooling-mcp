@@ -10,6 +10,7 @@ import json
 import datetime
 from pathlib import Path
 from config import get_state_dir
+from agentic._storage import locked, atomic_write_json
 
 
 def _list_path(list_name: str) -> Path:
@@ -27,8 +28,7 @@ def _load(list_name: str) -> dict:
 
 def _save(list_name: str, data: dict) -> None:
     data["updated_at"] = datetime.datetime.utcnow().isoformat() + "Z"
-    with open(_list_path(list_name), "w") as f:
-        json.dump(data, f, indent=2)
+    atomic_write_json(_list_path(list_name), data)
 
 
 def watchlist_add(list_name: str, entry: str) -> dict:
@@ -42,14 +42,15 @@ def watchlist_add(list_name: str, entry: str) -> dict:
     Returns:
         {"list_name": str, "entry": str, "added": bool, "count": int}
     """
-    data = _load(list_name)
-    normalized = entry.strip().upper()
-    existing = [e.upper() for e in data["entries"]]
-    if normalized in existing:
-        return {"list_name": list_name, "entry": entry, "added": False, "count": len(data["entries"])}
-    data["entries"].append(entry.strip())
-    _save(list_name, data)
-    return {"list_name": list_name, "entry": entry, "added": True, "count": len(data["entries"])}
+    with locked(_list_path(list_name)):
+        data = _load(list_name)
+        normalized = entry.strip().upper()
+        existing = [e.upper() for e in data["entries"]]
+        if normalized in existing:
+            return {"list_name": list_name, "entry": entry, "added": False, "count": len(data["entries"])}
+        data["entries"].append(entry.strip())
+        _save(list_name, data)
+        return {"list_name": list_name, "entry": entry, "added": True, "count": len(data["entries"])}
 
 
 def watchlist_remove(list_name: str, entry: str) -> dict:
@@ -59,14 +60,15 @@ def watchlist_remove(list_name: str, entry: str) -> dict:
     Returns:
         {"list_name": str, "entry": str, "removed": bool, "count": int}
     """
-    data = _load(list_name)
-    normalized = entry.strip().upper()
-    before = len(data["entries"])
-    data["entries"] = [e for e in data["entries"] if e.strip().upper() != normalized]
-    removed = len(data["entries"]) < before
-    if removed:
-        _save(list_name, data)
-    return {"list_name": list_name, "entry": entry, "removed": removed, "count": len(data["entries"])}
+    with locked(_list_path(list_name)):
+        data = _load(list_name)
+        normalized = entry.strip().upper()
+        before = len(data["entries"])
+        data["entries"] = [e for e in data["entries"] if e.strip().upper() != normalized]
+        removed = len(data["entries"]) < before
+        if removed:
+            _save(list_name, data)
+        return {"list_name": list_name, "entry": entry, "removed": removed, "count": len(data["entries"])}
 
 
 def watchlist_get(list_name: str) -> dict:

@@ -14,6 +14,7 @@ import json
 import datetime
 from pathlib import Path
 from config import get_state_dir
+from agentic._storage import locked, atomic_write_json
 
 _REGISTRY_FILENAME = "pricing_registry.json"
 _BUDGET_FILENAME = "budget_state.json"
@@ -49,8 +50,7 @@ def _load_budget() -> dict:
 
 
 def _save_budget(state: dict) -> None:
-    with open(_budget_path(), "w") as f:
-        json.dump(state, f, indent=2)
+    atomic_write_json(_budget_path(), state)
 
 
 # ---------------------------------------------------------------------------
@@ -152,26 +152,27 @@ def api_budget_check(
           "updated_at": str,
         }
     """
-    state = _load_budget()
-    session = state.get(session_id, {"cumulative_usd": 0.0, "created_at": datetime.datetime.utcnow().isoformat() + "Z"})
+    with locked(_budget_path()):
+        state = _load_budget()
+        session = state.get(session_id, {"cumulative_usd": 0.0, "created_at": datetime.datetime.utcnow().isoformat() + "Z"})
 
-    new_total = session["cumulative_usd"] + cost_to_add
-    allowed = new_total <= ceiling
+        new_total = session["cumulative_usd"] + cost_to_add
+        allowed = new_total <= ceiling
 
-    session["cumulative_usd"] = round(new_total, 8)
-    session["updated_at"] = datetime.datetime.utcnow().isoformat() + "Z"
-    state[session_id] = session
-    _save_budget(state)
+        session["cumulative_usd"] = round(new_total, 8)
+        session["updated_at"] = datetime.datetime.utcnow().isoformat() + "Z"
+        state[session_id] = session
+        _save_budget(state)
 
-    return {
-        "session_id": session_id,
-        "allowed": allowed,
-        "cost_added": round(cost_to_add, 8),
-        "cumulative_usd": round(new_total, 8),
-        "ceiling_usd": ceiling,
-        "remaining_usd": round(max(0.0, ceiling - new_total), 8),
-        "updated_at": session["updated_at"],
-    }
+        return {
+            "session_id": session_id,
+            "allowed": allowed,
+            "cost_added": round(cost_to_add, 8),
+            "cumulative_usd": round(new_total, 8),
+            "ceiling_usd": ceiling,
+            "remaining_usd": round(max(0.0, ceiling - new_total), 8),
+            "updated_at": session["updated_at"],
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -188,14 +189,15 @@ def api_budget_reset(session_id: str) -> dict:
     Returns:
         {"session_id": str, "reset": bool, "previous_cumulative_usd": float}
     """
-    state = _load_budget()
-    previous = state.pop(session_id, {}).get("cumulative_usd", 0.0)
-    _save_budget(state)
-    return {
-        "session_id": session_id,
-        "reset": True,
-        "previous_cumulative_usd": round(previous, 8),
-    }
+    with locked(_budget_path()):
+        state = _load_budget()
+        previous = state.pop(session_id, {}).get("cumulative_usd", 0.0)
+        _save_budget(state)
+        return {
+            "session_id": session_id,
+            "reset": True,
+            "previous_cumulative_usd": round(previous, 8),
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -226,22 +228,22 @@ def pricing_registry_update(
         {"provider": str, "model_id": str, "updated": bool}
     """
     path = _registry_path()
-    if path.exists():
-        with open(path) as f:
-            data = json.load(f)
-    else:
-        data = {"providers": {}}
+    with locked(path):
+        if path.exists():
+            with open(path) as f:
+                data = json.load(f)
+        else:
+            data = {"providers": {}}
 
-    providers = data.setdefault("providers", {})
-    provider_block = providers.setdefault(provider, {})
-    provider_block[model_id] = {
-        "input_per_mtok": input_per_mtok,
-        "output_per_mtok": output_per_mtok,
-        "notes": notes,
-        "updated_at": datetime.datetime.utcnow().isoformat() + "Z",
-    }
+        providers = data.setdefault("providers", {})
+        provider_block = providers.setdefault(provider, {})
+        provider_block[model_id] = {
+            "input_per_mtok": input_per_mtok,
+            "output_per_mtok": output_per_mtok,
+            "notes": notes,
+            "updated_at": datetime.datetime.utcnow().isoformat() + "Z",
+        }
 
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+        atomic_write_json(path, data)
 
     return {"provider": provider, "model_id": model_id, "updated": True}

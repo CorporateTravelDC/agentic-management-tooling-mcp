@@ -11,6 +11,7 @@ import datetime
 import httpx
 from pathlib import Path
 from config import get_state_dir
+from agentic._storage import atomic_write_json
 
 
 def _snapshot_path(snapshot_key: str) -> Path:
@@ -61,8 +62,7 @@ def session_snapshot_save(
         "data": results,
     }
 
-    with open(_snapshot_path(snapshot_key), "w") as f:
-        json.dump(snapshot, f, indent=2)
+    atomic_write_json(_snapshot_path(snapshot_key), snapshot)
 
     return {
         "snapshot_key": snapshot_key,

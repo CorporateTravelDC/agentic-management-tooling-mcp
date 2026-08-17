@@ -1,11 +1,16 @@
 """
 server.py -- FastMCP entry point for agentic-management-tooling-mcp.
 
-51 tools across four capability namespaces:
+51 tools across four capability namespaces, +3 more when intelligence/
+sub-modules are implemented (see below):
   agentic/       Safety rails, API budget, session state, async ops,
                  entity watchlists, go/no-go scoring, health monitoring.
   tools/         Public-API operational data tools.
-  intelligence/  LinkedIn, mobility, and coverage analysis.
+  intelligence/  LinkedIn (linkedin_analysis.py, live as of 2026-07-27),
+                 mobility (mobility_intelligence.py, not yet implemented),
+                 and coverage (coverage_intelligence.py, not yet implemented)
+                 analysis. Each sub-module is gated independently -- one
+                 being unimplemented doesn't block the others.
   gig_mobility/  Gig platform normalization and demand intelligence.
 
 Transport:
@@ -45,17 +50,36 @@ from tools.train_status     import get_train_status, get_train_delay
 from tools.airport_arrivals import get_airport_arrivals
 
 # ---------------------------------------------------------------------------
-# Intelligence tools (optional -- modules loaded only when implemented)
+# Intelligence tools (optional -- each sub-domain loaded independently, so
+# one unimplemented module doesn't block the others. Split 2026-07-27 --
+# previously all three lived behind one try/except, so linkedin_analysis
+# alone existing wouldn't have been enough to light up its 3 tools; mobility
+# and coverage remain unimplemented (no source module yet, deliberately
+# deferred -- see README's intelligence/ section) and stay unavailable
+# without affecting linkedin.
 # ---------------------------------------------------------------------------
-_intelligence_available = False
+import logging as _log
+
+_linkedin_available = False
 try:
-    from intelligence.linkedin_analysis     import linkedin_network_breakdown, linkedin_content_analysis, linkedin_engagement_patterns
-    from intelligence.mobility_intelligence import mobility_security_brief, mobility_marketing_brief, mobility_emergency_correlate, mobility_outage_supplement
-    from intelligence.coverage_intelligence import coverage_load_opencellid, coverage_grid_overlay, coverage_gap_analysis, coverage_provider_comparison
-    _intelligence_available = True
+    from intelligence.linkedin_analysis import linkedin_network_breakdown, linkedin_content_analysis, linkedin_engagement_patterns
+    _linkedin_available = True
 except ImportError:
-    import logging as _log
-    _log.getLogger("agentic_mcp").warning("intelligence/ modules not yet implemented -- 11 tools unavailable")
+    _log.getLogger("agentic_mcp").warning("intelligence/linkedin_analysis.py not implemented -- 3 LinkedIn tools unavailable")
+
+_mobility_intel_available = False
+try:
+    from intelligence.mobility_intelligence import mobility_security_brief, mobility_marketing_brief, mobility_emergency_correlate, mobility_outage_supplement
+    _mobility_intel_available = True
+except ImportError:
+    _log.getLogger("agentic_mcp").warning("intelligence/mobility_intelligence.py not implemented -- 4 mobility-intelligence tools unavailable")
+
+_coverage_intel_available = False
+try:
+    from intelligence.coverage_intelligence import coverage_load_opencellid, coverage_grid_overlay, coverage_gap_analysis, coverage_provider_comparison
+    _coverage_intel_available = True
+except ImportError:
+    _log.getLogger("agentic_mcp").warning("intelligence/coverage_intelligence.py not implemented -- 4 coverage tools unavailable")
 
 # ---------------------------------------------------------------------------
 # Gig mobility tools
@@ -278,24 +302,35 @@ def get_airport_arrivals_tool(airport: str, carriers: list[str] = None, within_m
     any airport, not just DC-area hubs."""
     return get_airport_arrivals(airport=airport, carriers=carriers, within_minutes=within_minutes)
 
-if _intelligence_available:
+if _linkedin_available:
     # ── Intelligence: LinkedIn ────────────────────────────────────────────────────
+    # Ported 2026-07-27 from the linkedin-export-analyzer Claude skill, which did
+    # this same analysis as model-authored inline Python re-run every session.
+    # This makes it a real, deterministic MCP tool instead.
 
     @mcp.tool()
-    def linkedin_network_breakdown_tool(export_path: str) -> dict:
-        """Industry and tenure breakdown from a LinkedIn data export ZIP or CSV directory."""
-        return linkedin_network_breakdown(export_path=export_path)
+    def linkedin_network_breakdown_tool(export_path: str, reference_date: str = None) -> dict:
+        """Industry and tenure breakdown from a LinkedIn "Get a copy of your data" export
+        (ZIP or already-extracted directory). reference_date (YYYY-MM-DD) controls tenure
+        bucketing -- use the export date when known, defaults to today. Never surfaces
+        names, emails, or per-connection PII -- aggregate counts and classifications only."""
+        return linkedin_network_breakdown(export_path=export_path, reference_date=reference_date)
 
     @mcp.tool()
     def linkedin_content_analysis_tool(export_path: str) -> dict:
-        """Post and comment topic analysis, co-occurrence, and engagement rate per topic."""
+        """Post and comment topic analysis and topic co-occurrence from a LinkedIn export.
+        Comment/share text itself is never returned -- only topic labels and counts."""
         return linkedin_content_analysis(export_path=export_path)
 
     @mcp.tool()
     def linkedin_engagement_patterns_tool(export_path: str) -> dict:
-        """Monthly activity trends, reaction patterns, and most-engaged contacts."""
+        """Reaction-type breakdown, monthly activity trend, and most-endorsed contacts from
+        a LinkedIn export. LinkedIn's export has no per-reaction author field, so "most
+        engaged with" is derived from Endorsement_Given_Info.csv -- the one file that
+        actually names people you engaged with, by your own prior action."""
         return linkedin_engagement_patterns(export_path=export_path)
 
+if _mobility_intel_available:
     # ── Intelligence: Mobility ────────────────────────────────────────────────────
 
     @mcp.tool()
@@ -318,6 +353,7 @@ if _intelligence_available:
         """Correlate gig data with a Downdetector-format outage export to identify connectivity failures."""
         return mobility_outage_supplement(records=records, downdetector_csv_path=downdetector_csv_path)
 
+if _coverage_intel_available:
     # ── Intelligence: Coverage ────────────────────────────────────────────────────
 
     @mcp.tool()
@@ -442,15 +478,20 @@ def stack_watchdog_status_tool(dispatch_token: str = None) -> dict:
             watchdog (dict | None): last run record from dispatch admin API,
                 fields: timestamp, age_seconds, healthy, healed, failed.
     """
+    import os
     import time
     import httpx
     import json as _json
 
+    # Host serving the dispatch stack; set AGENTIC_MCP_DISPATCH_HOST in the
+    # deployment environment (e.g. the box's Tailscale IP).
+    _host = os.environ.get("AGENTIC_MCP_DISPATCH_HOST", "127.0.0.1")
+
     ENDPOINTS = {
-        "dispatch-web":    "http://100.94.80.100:8000/healthz",
-        "dispatch-runner": "http://100.94.80.100:8001/healthz",
-        "ntfy":            "http://100.94.80.100:2586/v1/health",
-        "ollama":          "http://100.94.80.100:11434/api/tags",
+        "dispatch-web":    f"http://{_host}:8000/healthz",
+        "dispatch-runner": f"http://{_host}:8001/healthz",
+        "ntfy":            f"http://{_host}:2586/v1/health",
+        "ollama":          f"http://{_host}:11434/api/tags",
     }
 
     results: dict[str, dict] = {}
@@ -462,7 +503,7 @@ def stack_watchdog_status_tool(dispatch_token: str = None) -> dict:
         try:
             with httpx.Client(timeout=8.0) as client:
                 r = client.get(
-                    "http://100.94.80.100:8000/admin/watchdog/status",
+                    f"http://{_host}:8000/admin/watchdog/status",
                     headers={"Authorization": f"Bearer {dispatch_token}"},
                 )
                 if r.status_code == 200:

@@ -11,6 +11,7 @@ import datetime
 import httpx
 from pathlib import Path
 from config import get_state_dir
+from agentic._storage import locked, atomic_write_json
 
 _IDEM_FILENAME = "idempotency_state.json"
 
@@ -28,8 +29,7 @@ def _load_idem() -> dict:
 
 
 def _save_idem(state: dict) -> None:
-    with open(_idem_path(), "w") as f:
-        json.dump(state, f, indent=2)
+    atomic_write_json(_idem_path(), state)
 
 
 def trigger_poll(
@@ -132,26 +132,27 @@ def idempotency_check(
         {"allowed": bool, "operation_key": str,
          "last_fired_at": str|None, "age_seconds": float|None}
     """
-    state = _load_idem()
-    now = datetime.datetime.utcnow()
-    entry = state.get(operation_key)
+    with locked(_idem_path()):
+        state = _load_idem()
+        now = datetime.datetime.utcnow()
+        entry = state.get(operation_key)
 
-    if entry:
-        last = datetime.datetime.fromisoformat(entry["fired_at"])
-        age = (now - last).total_seconds()
-        if age < ttl_seconds:
-            return {
-                "allowed": False,
-                "operation_key": operation_key,
-                "last_fired_at": entry["fired_at"],
-                "age_seconds": round(age, 1),
-            }
+        if entry:
+            last = datetime.datetime.fromisoformat(entry["fired_at"])
+            age = (now - last).total_seconds()
+            if age < ttl_seconds:
+                return {
+                    "allowed": False,
+                    "operation_key": operation_key,
+                    "last_fired_at": entry["fired_at"],
+                    "age_seconds": round(age, 1),
+                }
 
-    state[operation_key] = {"fired_at": now.isoformat() + "Z"}
-    _save_idem(state)
-    return {
-        "allowed": True,
-        "operation_key": operation_key,
-        "last_fired_at": None,
-        "age_seconds": None,
-    }
+        state[operation_key] = {"fired_at": now.isoformat() + "Z"}
+        _save_idem(state)
+        return {
+            "allowed": True,
+            "operation_key": operation_key,
+            "last_fired_at": None,
+            "age_seconds": None,
+        }

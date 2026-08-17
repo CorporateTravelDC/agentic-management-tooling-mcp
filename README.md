@@ -56,7 +56,7 @@ gig_mobility/     Gig-platform export normalization and analysis.
 
 ---
 
-## Tools (51 total)
+## Tools (54 total: 51 always-on + 3 LinkedIn, live as of 2026-07-27)
 
 ### agentic/ -- 17 tools
 
@@ -101,16 +101,36 @@ Public API tools. No keys required. Useful standalone; designed to feed into
 | `get_train_status` | Amtrak train status at any station. |
 | `get_train_delay` | Delay in minutes for a specific Amtrak train at a given station. |
 
-### intelligence/ -- 11 tools
+### intelligence/ -- 3 live, 8 not yet implemented
 
 Analysis tools that operate on structured export files. No live API calls;
-all inference is local.
+all inference is local. Each sub-domain (LinkedIn, mobility, coverage) is
+gated independently in `server.py` -- one being unimplemented doesn't block
+the others from registering.
+
+**LinkedIn -- live as of 2026-07-27** (`intelligence/linkedin_analysis.py`,
+ported from the `linkedin-export-analyzer` Claude skill):
 
 | Tool | Purpose |
 |---|---|
 | `linkedin_network_breakdown` | Industry and tenure breakdown from a LinkedIn data export. |
 | `linkedin_content_analysis` | Post and comment topic analysis, co-occurrence. |
-| `linkedin_engagement_patterns` | Reaction patterns, monthly activity, most-engaged contacts. |
+| `linkedin_engagement_patterns` | Reaction patterns, monthly activity, most-endorsed contacts. |
+
+**Mobility and coverage -- not yet implemented.** These 8 tools are fully
+declared in `server.py` behind their own `try/except ImportError` gates
+(`_mobility_intel_available`, `_coverage_intel_available`), so the code is
+ready to light up the moment `intelligence/mobility_intelligence.py` and
+`intelligence/coverage_intelligence.py` exist -- there's just no source
+module backing either yet, and no existing skill/script to port from (unlike
+LinkedIn). `gig_network_anomaly_detect` and `gig_neighborhood_demand_pattern`
+in `gig_mobility/` below cover a narrower version of the outage-correlation
+and neighborhood-pattern ideas these were meant to generalize; treat those as
+the working subset today, not equivalents of the full mobility-intelligence
+design.
+
+| Tool | Purpose |
+|---|---|
 | `mobility_security_brief` | Surfaces high-activity and scarcity zones for advance and security planning. |
 | `mobility_marketing_brief` | Identifies underserved high-value corridors for concierge/transport positioning. |
 | `mobility_emergency_correlate` | Correlates mobility gaps with timestamped incident data. |

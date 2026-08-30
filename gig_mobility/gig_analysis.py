@@ -27,17 +27,33 @@ from config import MAIDENHEAD_DEFAULT_PRECISION
 
 _PLATFORM_MAPS = {
     "uber": {
-        "trip_id":       ["Trip ID", "trip_id", "Uuid"],
-        "start_time":    ["Begin Trip Time", "start_time", "Request Time"],
-        "end_time":      ["Dropoff Time", "end_time"],
-        "fare":          ["Fare Amount", "fare", "Price"],
-        "pickup_lat":    ["Begin Trip Lat", "start_lat"],
-        "pickup_lon":    ["Begin Trip Lng", "start_lng"],
-        "dropoff_lat":   ["Dropoff Lat", "end_lat"],
-        "dropoff_lon":   ["Dropoff Lng", "end_lng"],
+        # 2026-08-24: extended (additively, old candidates kept first so
+        # they still win on the older export style this map was originally
+        # built against) to also match Uber's newer "Download your data"
+        # GDPR-style export -- lowercase snake_case columns, no top-level
+        # trip id, per-fare-component breakdown instead of one "Fare
+        # Amount" column. Confirmed against a real rider_lifetime_trips-0.csv/
+        # driver_lifetime_trips-0.csv pair: neither the old candidates nor
+        # the "generic" map's candidates matched this format at all before
+        # this change (e.g. real column is "dropoff_lng", generic only
+        # looked for "dropoff_lon"/"lng"/"longitude" -- exact-key lookup,
+        # not substring, so close-but-not-exact names silently missed).
+        "trip_id":       ["Trip ID", "trip_id", "Uuid", "Trip UUID"],
+        # local-time columns prioritized ahead of _utc ones -- day_of_week/
+        # hour_of_day analysis wants wall-clock local time, not UTC.
+        "start_time":    ["Begin Trip Time", "start_time", "Request Time",
+                           "begintrip_timestamp_local", "request_timestamp_local",
+                           "begintrip_timestamp_utc", "request_timestamp_utc"],
+        "end_time":      ["Dropoff Time", "end_time",
+                           "dropoff_timestamp_local", "dropoff_timestamp_utc"],
+        "fare":          ["Fare Amount", "fare", "Price", "original_fare_usd", "base_fare_usd"],
+        "pickup_lat":    ["Begin Trip Lat", "start_lat", "begintrip_lat", "request_lat"],
+        "pickup_lon":    ["Begin Trip Lng", "start_lng", "begintrip_lng", "request_lng"],
+        "dropoff_lat":   ["Dropoff Lat", "end_lat", "dropoff_lat"],
+        "dropoff_lon":   ["Dropoff Lng", "end_lng", "dropoff_lng"],
         "restaurant":    ["Restaurant Name", "merchant_name"],
         "cuisine":       ["Restaurant Category", "category"],
-        "trip_type":     ["Product Type", "service"],
+        "trip_type":     ["Product Type", "service", "product_type_name"],
     },
     "lyft": {
         "trip_id":       ["Ride ID", "id"],
@@ -147,10 +163,23 @@ def _parse_fare(value: Any) -> float | None:
 def _parse_time(value: Any) -> datetime.datetime | None:
     if not value:
         return None
+    raw = str(value).strip()
+    # 2026-08-24: Uber's newer "Download your data" export timestamps are
+    # ISO 8601 with milliseconds and a literal "Z" suffix, e.g.
+    # "2025-10-24T12:31:17.000Z" -- none of the explicit formats below
+    # matched that shape (found via a real record silently skipping every
+    # row: fare parsed fine, start_time always came back None). datetime's
+    # own fromisoformat() doesn't accept a bare "Z" before Python 3.11, so
+    # normalize it to "+00:00" first rather than assuming the interpreter
+    # version.
+    try:
+        return datetime.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        pass
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%m/%d/%Y %H:%M",
                 "%Y-%m-%d", "%m/%d/%Y"):
         try:
-            return datetime.datetime.strptime(str(value).strip(), fmt)
+            return datetime.datetime.strptime(raw, fmt)
         except ValueError:
             continue
     return None

@@ -65,7 +65,13 @@ INDUSTRY_KEYWORDS: list[tuple[str, str]] = [
     ("Entrepreneurship",          r"\b(entrepreneur|startup|small\s+business|self[- ]employed|consultant|consulting)\b"),
 ]
 
-_DATE_FORMATS = ("%d %b %Y", "%m/%d/%y", "%Y-%m-%d", "%b %d, %Y", "%d-%b-%y")
+# 2026-08-24: added "%Y-%m-%d %H:%M:%S" -- Comments/Shares/Reactions.csv's
+# own "Date" column carries a full timestamp ("2026-08-22 23:29:00"), not
+# a bare date, so every _monthly_series() call was silently returning {}
+# against a real export (found live: reaction_monthly/comment_monthly/
+# share_monthly all empty despite thousands of real, dated rows). Kept
+# ahead of the bare-date formats so a full timestamp matches first.
+_DATE_FORMATS = ("%Y-%m-%d %H:%M:%S", "%d %b %Y", "%m/%d/%y", "%Y-%m-%d", "%b %d, %Y", "%d-%b-%y")
 
 
 def _open_export(export_path: str) -> Callable[[str], Optional[str]]:
